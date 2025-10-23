@@ -1,0 +1,12 @@
+# IDE and Editor Folders to ignore
+.idea/
+.vscode/
+
+# Python generated files to ignore
+__pycache__/
+*.pyc
+
+# Optional: Other folders you downloaded that are not part of your game
+# You can uncomment these lines if you don't want to save these folders
+# pyQt5-DragDrop/
+# tkdnd-master/

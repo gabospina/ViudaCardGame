@@ -1,0 +1,38 @@
+python -m venv .venv
+
+Explanation:
+python -m venv tells Python to execute the venv module for creating virtual environments.
+.venv specifies the name of the virtual environment to be created in the current directory (you can choose another name).
+
+Example:
+python -m venv MyVirtualEnv  # Creates a virtual environment named MyVirtualEnv
+
+Verification:
+If successful, see output indicating of the virtual environment directory (.venv in this case).
+
+Next Steps:
+Now that the virtual environment exists, activate it using in the Command Prompt:
+.\venv\Scripts\activate.bat  # Activate the virtual environment named .v
+
+HOW TO ACTIVATE A VIRTUAL ENVIROMMENT:
+
+Directory: C:\Users\Daisy\PycharmProjects\ViudaGemini
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----          4/5/2024  10:55 AM                .idea
+d-----          4/5/2024   3:09 PM                pyQt5-DragDrop
+-a----          4/5/2024   3:33 PM            629 Comments
+
+YOU MUST TYPE THIS LINE COMPLETE: cd pyQt5-DragDrop\.venv\Scripts
+
+PS C:\Users\Daisy\PycharmProjects\ViudaGemini> cd pyQt5-DragDrop\.venv\Scripts
+
+PS C:\Users\Daisy\PycharmProjects\ViudaGemini\pyQt5-DragDrop\.venv\Scripts> activate
+activate : The term 'activate' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling
+
+Suggestion [3,General]: The command activate was not found, but does exist in the current location. Windows PowerShell does not load comma
+nds from the current location by default. If you trust this command, instead type: ".\activate". See "get-help about_Command_Precedence" f
+or more details.
+PS C:\Users\Daisy\PycharmProjects\ViudaGemini\pyQt5-DragDrop\.venv\Scripts> .\activate
+(.venv) PS C:\Users\Daisy\PycharmProjects\ViudaGemini\pyQt5-DragDrop\.venv\Scripts>
