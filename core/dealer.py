@@ -331,7 +331,7 @@ class Dealer(QObject):
             print(
                 f"D1-2 player_out - Removing player {player_window.player_name} from the game."
             )
-            self.player_windows.remove(player_window)
+            # self.player_windows.remove(player_window)
             player_window.close()
             # self.remove_player(player_window)  # Ensure any additional updates are handled
             self.check_for_game_continuation()
@@ -341,7 +341,7 @@ class Dealer(QObject):
                 f"D2-2 player_out - Player {player_window.player_name} not found in player_windows."
             )
 
-    def check_for_game_continuation(self):
+    def check_for_game_continuation1(self):
         """Check if there's only one player left with chips or if the game needs to end."""
         if len(self.player_windows) == 1:
             print(
@@ -355,3 +355,24 @@ class Dealer(QObject):
                 "D2-2 check_for_game_continuation - No players left. Ending the game."
             )
             self.game_window.final_end_game()
+
+    # In Dealer class
+    def check_for_game_continuation(self):
+        """Check if there's only one active player left."""
+
+        # Get the list of statuses from the main game window
+        statuses = self.game_window.player_statuses
+
+        # Count how many players are still 'Active'
+        active_player_count = statuses.count("Active")
+
+        print(
+            f"check_for_game_continuation: Found {active_player_count} active players."
+        )
+
+        if active_player_count <= 1:
+            print("Only one or zero players left. Ending the game.")
+            self.game_window.final_end_game()
+        elif active_player_count > 1:
+            # More than one player is left, so start the next hand.
+            self.game_window.alert_next_hand()
