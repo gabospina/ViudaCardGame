@@ -1,4 +1,5 @@
 import logging
+import traceback
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -20,6 +21,7 @@ from PyQt5.QtGui import QIcon, QPixmap
 # Import all our new modules
 from core.card import Deck
 from core.dealer import Dealer
+from ui.card_widget import CardWidget
 from ui.drag_widget import DragWidget
 from ui.player_window import PlayerWindow
 
@@ -57,7 +59,9 @@ class GameWindow(QMainWindow):
 
         # Initialize reveal_dragwidget and player_dragwidget instances
         self.reveal_dragwidget = DragWidget(self, "reveal_dragwidget")
+        self.reveal_dragwidget.setObjectName("reveal_area")
         self.player_dragwidget = DragWidget(self, "player_dragwidget")
+        self.player_dragwidget.setObjectName("player_hand")
 
         self.flop = Flop()  # Assuming you have a Flop class or similar
 
@@ -87,13 +91,13 @@ class GameWindow(QMainWindow):
         self.call_button_clicked = False
         self.turns_after_call = 0
         self.consecutive_passes = 0
-        # --- ADD THIS LINE ---
         self.last_loser_number = 0
         self.hand_starter_number = 0
         # ---------------------
 
         self.next_player_turn = None
-        self.hand_in_progress = False  # Add this flag
+        self.hand_in_progress = False  # True  # Add this flag
+        self.is_game_over = False
         self.init_ui()
         self.init_ui_chips_and_list()
 
@@ -175,7 +179,9 @@ class GameWindow(QMainWindow):
         # Create player windows for each player
         for i in range(self.num_players):
             player_dragwidget = DragWidget(parent=None, max_items=6, min_items=5)
+            player_dragwidget.setObjectName(f"player_{i+1}_hand")
             reveal_dragwidget = DragWidget(parent=None, max_items=5, min_items=4)
+            reveal_dragwidget.setObjectName(f"player_{i+1}_reveal")
 
             self.reveal_dragwidgets.append(reveal_dragwidget)
 
@@ -207,7 +213,10 @@ class GameWindow(QMainWindow):
             player_window.show()
 
     # In GameWindow class
-    def start_first_hand(self):
+    def start_first_hand1(self):
+        # --- ADD THIS LINE AT THE TOP ---
+        self.hand_in_progress = True
+        #
         self.deck.shuffle()
         self.deck.update_wild_card(self.table_chips)
 
@@ -235,7 +244,7 @@ class GameWindow(QMainWindow):
         # Set button states for all players based on the starter.
         for player_window in self.player_windows:
             player_window.set_initial_button_states(
-                self.current_player_number, call_button_clicked=False
+                self.current_player_number, call_button_clicked=True
             )
         # --- END OF CHANGES ---
 
@@ -252,8 +261,53 @@ class GameWindow(QMainWindow):
                         if hasattr(card_widget, "card") and card_widget.card == card:
                             card_widget.setStyleSheet("border: 2px solid red;")
 
+    # In GameWindow class (ui/game_window.py)
+    def start_first_hand(self):
+        self.hand_in_progress = True
+        self.deck.shuffle()
+        self.deck.update_wild_card(self.table_chips)
+
+        self.all_reveal_cards = self.deck.deal(5)
+        self.all_player_cards = [self.deck.deal(5) for _ in range(self.num_players)]
+
+        for i, player_window in enumerate(self.player_windows):
+            player_window.add_cards_to_widget(
+                player_window.reveal_dragwidget, self.all_reveal_cards, reveal=True
+            )
+            player_window.add_cards_to_widget(
+                player_window.player_dragwidget,
+                self.all_player_cards[i],
+                reveal=False,
+            )
+
+        # --- UNIFIED STARTER LOGIC (same as next_hand) ---
+        # The "next" starter after the pre-game state (0) is Player 1.
+        self.hand_starter_number = (self.hand_starter_number % self.num_players) + 1
+        self.current_player_number = self.hand_starter_number
+        print(f"--- FIRST HAND --- Player {self.current_player_number} will start.")
+        # --- END OF UNIFIED LOGIC ---
+
+        # Set button states for all players based on the starter.
+        for player_window in self.player_windows:
+            player_window.set_initial_button_states(
+                self.current_player_number, call_button_clicked=False
+            )
+
+        # (Your wild card highlighting logic remains unchanged)
+        for card in self.all_reveal_cards:
+            if card.is_wild:
+                logging.debug(
+                    f"start_first_hand: Card {card} is wild and should be highlighted."
+                )
+                for player_window in self.player_windows:
+                    for card_widget in player_window.reveal_dragwidget.findChildren(
+                        CardWidget
+                    ):
+                        if hasattr(card_widget, "card") and card_widget.card == card:
+                            card_widget.setStyleSheet("border: 2px solid red;")
+
     # In GameWindow class
-    def check_end_hand(self):
+    def check_end_hand1(self):
         try:
             # Get a fresh list of currently active players
             active_players = [
@@ -291,12 +345,66 @@ class GameWindow(QMainWindow):
 
             traceback.print_exc()
 
+    # In GameWindow class
+    def check_end_hand(self):
+        try:
+            active_players = [
+                p
+                for p in self.player_windows
+                if self.player_statuses[p.player_index] == "Active"
+            ]
+            num_active_players = len(active_players)
+
+            # Pass Button Strict Rule Check
+            if self.consecutive_passes >= num_active_players and num_active_players > 1:
+                print("check_end_hand - All active players passed. Ending hand.")
+                self.end_hand()
+                return
+
+            # Call Button Logic Check
+            if self.call_button_clicked:
+                # --- THE FIX: The counter is now managed ONLY here ---
+                # The check happens *before* we decide to increment.
+                print(
+                    f"check_end_hand - Turns after call: {self.turns_after_call}/{num_active_players}"
+                )
+                if self.turns_after_call >= num_active_players:
+                    print("check_end_hand - Final round is over. Ending hand.")
+                    self.end_hand()
+                    return
+
+                # If the hand is not over, we can safely increment for the next check.
+                # This logic needs to be tied to a turn actually passing.
+                # Let's add a flag. In every action method (pass, reveal, etc.) set a flag:
+                # self.main_window.turn_action_taken = True
+                # And in next_hand, reset it: self.turn_action_taken = False
+
+                # No, that is too complex. Let's simplify.
+                # The problem is that check_end_hand is called multiple times.
+                # The increment needs to be tied to the turn change itself.
+                pass  # We will put the increment in the turn change functions.
+
+        except Exception as e:
+            print(f"An error occurred in check_end_hand: {e}")
+            import traceback
+
+            traceback.print_exc()
+
     def end_hand(self):
         try:
+            # --- NEW GUARD AND STATE RESET BLOCK ---
+            if not self.hand_in_progress:
+                print("end_hand: Called when hand was not in progress. Ignoring.")
+                return  # Prevent this from running more than once
+
+            self.hand_in_progress = False  # The hand is now officially over
+
+            # This is a good place to also reset the call flag for the hand that just ended.
+            self.call_button_clicked = False
+            # --- END OF NEW BLOCK ---
+
             print("\n--- end_hand method started ---")
             print(f"Current side chips: {self.side_chips}")
-
-            self.hand_in_progress = False
 
             # Disable all buttons for all players and set them to yellow
             for window in self.player_windows:
@@ -309,7 +417,7 @@ class GameWindow(QMainWindow):
                 window.pass_button.setEnabled(False)
                 window.pass_button.setStyleSheet("background-color: yellow;")
 
-            # --- FIX: Only evaluate hands of ACTIVE players ---
+            # (The rest of your method's logic from here is correct and remains unchanged)
             active_player_windows = [
                 p
                 for p in self.player_windows
@@ -318,67 +426,46 @@ class GameWindow(QMainWindow):
             winning_window, losing_window, winning_cards = (
                 self.dealer.determine_winner_and_loser(active_player_windows)
             )
-            # --- END OF FIX ---
 
-            # Highlight the winning hand's wild cards (UI logic is handled here)
             for card in winning_cards:
                 card_label = winning_window.find_card_label(card)
                 if card_label:
                     card.highlight_wild_card(card_label, is_face_up=True)
 
-            # --- ADD THIS LINE ---
             self.last_loser_number = losing_window.player_number
-            # ---------------------
-
-            # Get the loser object and its index
             loser = losing_window
             loser_index = self.player_windows.index(losing_window)
 
-            # Display winner and loser information
             print(f"Winner: {winning_window.player_name}")
             print(f"Loser: {loser.player_name}")
             self.dealer.display_winner(winning_window)
-            # ===================== END: CORRECTED BLOCK =====================
 
-            # Update the loser's chips, table chips, and side chips
             self.dealer.update_player_chips(loser_index, -1)
             print(f"Updated player chips for {loser.player_name}: {loser.player_chips}")
-            self.table_chips += 1  # Add the losing player's chip to the table chips
-            self.update_table_chip_label(
-                self.table_chips
-            )  # Update the table chip label
+            self.table_chips += 1
+            self.update_table_chip_label(self.table_chips)
 
-            # Handle player with no chips (THIS LOGIC IS UNCHANGED)
             if loser.player_chips <= 0:
-                # Condition 1: Player is removed if side_chips_label is no longer visible
                 if not self.side_chip_label.isVisible():
                     print(
                         f"Player {loser.player_name} has no chips left and no side chips available. Removing player."
                     )
                     self.remove_player_from_game(loser)
-                    return  # Exit after removing the player to avoid further checks
-
-                # Condition 2 & 3: Player is removed when they decline the last side chip
+                    return
                 choice = self.ask_loser_to_take_side_chip(loser)
                 if choice == "Yes":
-                    self.dealer.update_side_chips(-1, self)  # Decrease side chips by 1
-                    self.dealer.update_player_chips(
-                        loser_index, 1
-                    )  # Add 1 chip to the loser's player chips
+                    self.dealer.update_side_chips(-1, self)
+                    self.dealer.update_player_chips(loser_index, 1)
                     print(
                         f"{loser.player_name} took the last side chip. Player chips now: {loser.player_chips}"
                     )
-                    # Remove the side chip label if side chips are depleted
-                    if self.dealer.side_chips == 0:  # Check the actual value
+                    if self.dealer.side_chips == 0:
                         self.remove_side_chip_label()
                 else:
                     print(f"{loser.player_name} declined the last side chip.")
                     self.remove_player_from_game(loser)
 
-            # Clear any QMessage or reset state to avoid duplication in the next hand
             self.clear_previous_qmessage()
-
-            # Check if the game should continue
             self.dealer.check_for_game_continuation()
 
         except Exception as e:
@@ -418,7 +505,6 @@ class GameWindow(QMainWindow):
         )
         return "Yes" if choice == QMessageBox.Yes else "No"
 
-    # In GameWindow class, replace the old method with this one
     def remove_player_from_game(self, loser_window):
         """Handles removing a player from the game logically and visually."""
         print(f"Removing {loser_window.player_name} from the game.")
@@ -491,15 +577,125 @@ class GameWindow(QMainWindow):
             self.table_chips = table_chips
         self.table_chip_label.setText(f"Table Chips: {self.table_chips}")
 
-    # END =======================
-
+    # Gemini
+    # In GameWindow class (ui/game_window.py)
     def next_hand(self):
         print("next_hand method called")
         try:
+            self.hand_in_progress = True
             print("next_hand: RESETTING COUNTERS")
             self.call_button_clicked = False
             self.turns_after_call = 0
             self.consecutive_passes = 0
+
+            for window in self.player_windows:
+                if window.reveal_button.isHidden():
+                    window.reveal_button.show()
+
+            # --- FINAL, ROBUST STARTING PLAYER LOGIC ---
+            found_starter = False
+            # Loop a maximum of num_players times to find the next active starter in the rotation.
+            for _ in range(self.num_players):
+                # Calculate the next player number in the original sequence (1->2->3->1...).
+                self.hand_starter_number = (
+                    self.hand_starter_number % self.num_players
+                ) + 1
+
+                # Find the window for this candidate.
+                starter_window = next(
+                    (
+                        p
+                        for p in self.player_windows
+                        if p.player_number == self.hand_starter_number
+                    ),
+                    None,
+                )
+
+                # Check if this designated starter is active.
+                if (
+                    starter_window
+                    and self.player_statuses[starter_window.player_index] == "Active"
+                ):
+                    # We found an active player who is next in the rotation. This is our starter.
+                    self.current_player_number = starter_window.player_number
+                    print(
+                        f"--- NEW HAND --- Player {self.current_player_number} will start."
+                    )
+                    found_starter = True
+                    break  # Exit the loop, we have our starter.
+
+            if not found_starter:
+                # This should only happen when 1 or 0 players are left.
+                print(
+                    "next_hand: Could not find a suitable active starter. Checking for game end."
+                )
+                self.dealer.check_for_game_continuation()
+                return
+            # --- END OF FINAL LOGIC ---
+
+            # (Wild Card and Card Dealing logic is now correct)
+            self.deck.update_wild_card(self.table_chips)
+            active_player_count = len(
+                [s for s in self.player_statuses if s == "Active"]
+            )
+            required_cards = (active_player_count * 5) + 5
+            if len(self.deck.cards) < required_cards:
+                print("Not enough cards in deck. Creating new deck.")
+                self.deck = Deck()
+                self.deck.update_wild_card(self.table_chips)
+                self.deck.shuffle()
+
+            self.all_reveal_cards = self.deck.deal(5)
+            self.all_player_cards = [self.deck.deal(5) for _ in range(self.num_players)]
+
+            for i, player_window in enumerate(self.player_windows):
+                player_window.player_dragwidget.clear()
+                player_window.reveal_dragwidget.clear()
+                if self.player_statuses[player_window.player_index] == "Active":
+                    print(
+                        f"Dealing cards to active player: {player_window.player_name}"
+                    )
+                    player_window.add_cards_to_widget(
+                        player_window.reveal_dragwidget,
+                        self.all_reveal_cards,
+                        reveal=True,
+                    )
+                    player_window.add_cards_to_widget(
+                        player_window.player_dragwidget,
+                        self.all_player_cards[i],
+                        reveal=False,
+                    )
+
+            # Set button states for all players based on the new current player
+            for window in self.player_windows:
+                window.set_initial_button_states(
+                    self.current_player_number, self.call_button_clicked
+                )
+
+        except Exception as e:
+            logging.error(f"An error occurred in next_hand: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    # DeepDeek
+    def next_handDS(self):
+        print("next_hand method called")
+        try:
+            # --- ADD THIS LINE AT THE TOP ---
+            self.hand_in_progress = True
+            #
+            print("next_hand: RESETTING COUNTERS")
+            self.call_button_clicked = False
+            self.turns_after_call = 0
+            self.consecutive_passes = 0
+
+            # --- PRIORITY 1 FIX: ALWAYS UPDATE WILD CARD AT HAND START ---
+            print(
+                f"Updating wild card for new hand with {self.table_chips} table chips"
+            )
+            self.deck.update_wild_card(self.table_chips)
+            # --- END OF PRIORITY 1 FIX ---
 
             # --- FIX: Make sure all Reveal buttons are visible at the start of a hand ---
             for window in self.player_windows:
@@ -507,36 +703,57 @@ class GameWindow(QMainWindow):
                     window.reveal_button.show()
             # --- END OF FIX ---
 
-            # --- NEW, CORRECTED STARTING PLAYER LOGIC ---
-            # The rule: The next hand is started by the next player in the original sequence.
+            # --- PRIORITY 3 FIX: CORRECT HAND STARTER ROTATION LOGIC ---
+            # Simple circular rotation through active players
+            total_players = len(self.player_windows)
 
-            # We start our search from the player number who started the LAST hand.
-            search_start_number = self.hand_starter_number
+            # Start from the player after the last hand starter
+            next_starter_candidate = (self.hand_starter_number % total_players) + 1
 
-            # This loop will start checking from the player AFTER the last starter.
-            starter_window = self.get_next_active_player(search_start_number)
+            # Find the next active player in sequence
+            new_starter_found = False
+            attempts = 0
+            while attempts < total_players and not new_starter_found:
+                # Check if this candidate is active
+                candidate_index = next_starter_candidate - 1  # Convert to 0-based index
+                if (
+                    self.player_statuses[candidate_index] == "Active"
+                    and self.player_windows[candidate_index].player_chips > 0
+                ):
 
-            # If no one is found (which means only one active player is left), end the game.
-            if not starter_window:
-                print("next_hand: No other active players found. Ending game.")
+                    # Found our new hand starter!
+                    self.current_player_number = next_starter_candidate
+                    self.hand_starter_number = next_starter_candidate
+                    new_starter_found = True
+                    print(
+                        f"--- NEW HAND --- Player {self.current_player_number} will start."
+                    )
+
+                else:
+                    # Move to next candidate
+                    next_starter_candidate = (
+                        next_starter_candidate % total_players
+                    ) + 1
+                    attempts += 1
+
+            # If no active player found, end the game
+            if not new_starter_found:
+                print("next_hand: No active players found. Ending game.")
                 self.dealer.check_for_game_continuation()
                 return
-
-            # We found the starter! Update the game state for the new hand.
-            self.current_player_number = starter_window.player_number
-            self.hand_starter_number = (
-                self.current_player_number
-            )  # Remember who started THIS hand for the next rotation.
-            print(f"--- NEW HAND --- Player {self.current_player_number} will start.")
-            # --- END OF CORRECTED LOGIC ---
+            # --- END OF PRIORITY 3 FIX ---
 
             # (Card dealing logic)
             active_player_count = len(
                 [s for s in self.player_statuses if s == "Active"]
             )
             required_cards = (active_player_count * 5) + 5
+
+            # Only recreate deck if we don't have enough cards
             if len(self.deck.cards) < required_cards:
+                print("Not enough cards in deck. Creating new deck.")
                 self.deck = Deck()
+                # Also update wild card for the new deck (redundant but safe)
                 self.deck.update_wild_card(self.table_chips)
                 self.deck.shuffle()
 
@@ -574,7 +791,7 @@ class GameWindow(QMainWindow):
 
             traceback.print_exc()
 
-    def final_end_game(self):
+    def final_end_game1(self):
         """Finds the last active player and declares them the winner."""
 
         # --- NEW, RELIABLE LOGIC ---
@@ -601,6 +818,44 @@ class GameWindow(QMainWindow):
             print(
                 f"Final end game called with {len(active_players)} active players remaining, which should not happen."
             )
+
+    # In GameWindow class (ui/game_window.py)
+    def final_end_game(self):
+        """Finds the last active player, declares them the winner, and closes the app."""
+
+        # --- THE FIX: Use a flag to prevent this from running more than once ---
+        if self.is_game_over:
+            return  # Do nothing if the game-over process has already started.
+
+        # Lock the door: Set the flag to True immediately.
+        self.is_game_over = True
+        # --- END OF FIX ---
+
+        # Find the last active player
+        active_players = []
+        for i, status in enumerate(self.player_statuses):
+            if status == "Active":
+                active_players.append(self.player_windows[i])
+
+        if len(active_players) == 1:
+            final_winner = active_players[0]
+            print(
+                f"Game Over. The final winner is {final_winner.player_name} with {final_winner.player_chips} chips."
+            )
+            QMessageBox.information(
+                self,
+                "Game Over",
+                f"Game Over! The final winner is {final_winner.player_name} with {final_winner.player_chips} chips.",
+            )
+            # Directly quit the application instead of just closing the window
+            QApplication.quit()
+        else:
+            # This message will now only appear if there is a genuine logic error
+            print(
+                f"Final end game called with {len(active_players)} active players, but should be 1."
+            )
+            # Quit anyway to prevent the game from being stuck
+            QApplication.quit()
 
     def closeEvent(self, event):
         self.final_end_game()
@@ -633,8 +888,10 @@ class GameWindow(QMainWindow):
             if response == QMessageBox.Yes:
                 self.next_hand()
             else:
-                self.close()
-                print("Game stopped by the user.")
+                # --- THE FIX ---
+                print("Game stopped by the user. Exiting application.")
+                QApplication.quit()  # This cleanly exits the entire app.
+                # --- END OF FIX ---
 
         except Exception as e:
             logging.error(f"An error occurred in alert_next_hand: {e}")
@@ -802,7 +1059,7 @@ class GameWindow(QMainWindow):
                             None  # reset the drag_item attribute
                         )
 
-    def add_card_to_all_reveal_dragwidgets(self, card, exclude_widget=None):
+    def add_card_to_all_reveal_dragwidgets1(self, card, exclude_widget=None):
         for reveal_dragwidget in self.reveal_dragwidgets:
             if reveal_dragwidget is not exclude_widget:
                 if len(reveal_dragwidget.items) < reveal_dragwidget.maximum_cards():
@@ -812,6 +1069,29 @@ class GameWindow(QMainWindow):
                     reveal_dragwidget.add_item(card_label)
                 else:
                     pass
+
+    def add_card_to_all_reveal_dragwidgets(self, card, exclude_widget=None):
+        for reveal_dragwidget in self.reveal_dragwidgets:
+            if reveal_dragwidget is not exclude_widget:
+                if len(reveal_dragwidget.items) < reveal_dragwidget.maximum_cards():
+
+                    # --- CRITICAL FIX ---
+                    # Find the PlayerWindow that this reveal_dragwidget belongs to.
+                    owner_window = reveal_dragwidget.parent_window
+                    if owner_window:
+                        card_label = CardWidget(
+                            card,
+                            owner_window.player_dragwidget,  # Correct player_dragwidget
+                            reveal_dragwidget,
+                            parent_window=owner_window,  # Pass the correct owner window
+                            face_down=False,
+                        )
+                        reveal_dragwidget.add_item(card_label)
+                    else:
+                        print(
+                            f"Error: Could not find owner window for a reveal_dragwidget."
+                        )
+                    # --- END OF FIX ---
 
     def print_all_cards(self):
         for player_window in self.player_windows:

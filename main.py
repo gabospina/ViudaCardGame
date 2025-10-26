@@ -18,7 +18,7 @@ def main():
 
     app = QApplication([])
 
-    num_players = 4
+    num_players = 3
 
     # Create and show the PlayerNamesDialog
     dialog = PlayerNamesDialog(num_players)

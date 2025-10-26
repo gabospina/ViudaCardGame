@@ -1,3 +1,4 @@
+import traceback
 from PyQt5.QtWidgets import (
     QMainWindow,
     QDockWidget,
@@ -316,158 +317,15 @@ class PlayerWindow(QMainWindow):
             self.reveal_dragwidget.add_item(card_label)
         card_label.setAlignment(Qt.AlignCenter)
 
+    # In PlayerWindow class
     def reveal_cards1(self):
         try:
-            # --- ADD THIS LINE ---
-            self.main_window.consecutive_passes = 0
-            # ---------------------
+            # --- ADD THIS GUARD ---
+            if not self.main_window.hand_in_progress:
+                print("Reveal action ignored: Hand not in progress.")
+                return
+            # -----------------------
 
-            print("Reveal button clicked")
-            self.cards_revealed = True
-
-            # Ensure lists are initialized
-            self.reveal_cards = [
-                card_label.card for card_label in self.reveal_dragwidget.items
-            ]
-            self.player_cards = [
-                card_label.card for card_label in self.player_dragwidget.items
-            ]
-
-            # Clear both drag widgets
-            self.player_dragwidget.clear()
-            self.reveal_dragwidget.clear()
-
-            # Update the drag widgets with the new cards
-            for card in self.player_cards:
-                card.set_face_down()
-                card_label = CardWidget(
-                    card,
-                    self.player_dragwidget,
-                    self.reveal_dragwidget,
-                    parent_window=self,
-                )
-                self.reveal_dragwidget.add_item(card_label)
-
-            for card in self.reveal_cards:
-                card.set_face_up()
-                card.load_image()
-                card_label = CardWidget(
-                    card,
-                    self.player_dragwidget,
-                    self.reveal_dragwidget,
-                    parent_window=self,
-                )
-                self.player_dragwidget.add_item(card_label)
-
-            # Update the card lists with the actual Card objects from the drag widgets
-            self.reveal_cards = [
-                card_label.card for card_label in self.reveal_dragwidget.items
-            ]
-            self.player_cards = [
-                card_label.card for card_label in self.player_dragwidget.items
-            ]
-
-            # Update the reveal button state for all players
-            for window in self.main_window.player_windows:
-                window.reveal_button_clicked = True
-
-            # Check if the ***** call button was clicked before the reveal button *******
-            if (
-                self.main_window.call_button_clicked
-            ):  # and not self.main_window.call_button_clicked_by_current_player:
-                self.main_window.turns_after_call += 1
-
-            # Determine the next player's number
-            next_player_number = (
-                self.player_number % len(self.main_window.player_windows)
-            ) + 1
-
-            for window in self.main_window.player_windows:
-                window.reveal_button.hide()
-                if window == self:
-                    for card_label in window.reveal_dragwidget.items:
-                        card_label.card.set_face_up()
-                        card_label.card.load_image()
-                        scaled_pixmap = card_label.card.pixmap.scaled(
-                            50, 80, Qt.AspectRatioMode.KeepAspectRatio
-                        )
-                        card_label.setPixmap(scaled_pixmap)
-                    for card_label in window.player_dragwidget.items:
-                        card_label.card.set_face_up()
-                        card_label.card.load_image()
-                        scaled_pixmap = card_label.card.pixmap.scaled(
-                            50, 80, Qt.AspectRatioMode.KeepAspectRatio
-                        )
-                        card_label.setPixmap(scaled_pixmap)
-
-                    self.exchange_button.setEnabled(False)
-                    self.exchange_button.setStyleSheet("background-color: red;")
-                    self.call_button.setEnabled(False)
-                    self.call_button.setStyleSheet("background-color: red;")
-                    self.pass_button.setEnabled(False)
-                    self.pass_button.setStyleSheet("background-color: red;")
-                else:
-                    window.reveal_dragwidget.clear()
-                    if window.player_number == next_player_number:
-                        window.reveal_button.setEnabled(True)
-                        window.reveal_button.setStyleSheet("background-color: green;")
-                        window.exchange_button.setEnabled(True)
-                        window.exchange_button.setStyleSheet("background-color: green;")
-                        window.call_button.setEnabled(True)
-                        window.call_button.setStyleSheet("background-color: green;")
-                        window.pass_button.setEnabled(True)
-                        window.pass_button.setStyleSheet("background-color: green;")
-
-                    for card in self.reveal_cards:
-                        card_label = CardWidget(
-                            card,
-                            window.player_dragwidget,
-                            window.reveal_dragwidget,
-                            parent_window=window,
-                        )
-                        card_label.card.set_face_up()
-                        card_label.card.load_image()
-                        card_label.setPixmap(
-                            card_label.card.pixmap.scaled(
-                                50, 80, Qt.AspectRatioMode.KeepAspectRatio
-                            )
-                        )
-                        window.reveal_dragwidget.add_item(card_label)
-
-                    if window.player_number not in [
-                        self.player_number,
-                        next_player_number,
-                    ]:
-                        window.exchange_button.setEnabled(False)
-                        window.exchange_button.setStyleSheet("background-color: red;")
-                        window.call_button.setEnabled(False)
-                        window.call_button.setStyleSheet("background-color: red;")
-                        window.pass_button.setEnabled(False)
-                        window.pass_button.setStyleSheet("background-color: red;")
-
-            if self.main_window.call_button_clicked:
-                #     for window in self.main_window.player_windows:
-                #         if window != self:
-                #             window.call_button.setEnabled(False)
-                #             window.call_button.setStyleSheet("background-color: red;")
-
-                # for window in self.main_window.player_windows:
-                #     if not window.call_button_clicked:
-                #         return
-                pass
-
-            # --- ADD THIS LOGIC BLOCK ---
-            if self.main_window.call_button_clicked:
-                self.main_window.turns_after_call += 1
-            # ----------------------------
-
-            QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
-        except Exception as e:
-            print(f"An error occurred: {e}")
-
-    # In PlayerWindow class
-    def reveal_cards(self):
-        try:
             self.main_window.consecutive_passes = 0
             print("Reveal button clicked")
             self.cards_revealed = True
@@ -508,10 +366,6 @@ class PlayerWindow(QMainWindow):
             ]
             for window in self.main_window.player_windows:
                 window.reveal_button_clicked = True
-
-            # Increment the counter if this is part of a "call" round
-            if self.main_window.call_button_clicked:
-                self.main_window.turns_after_call += 1
 
             # --- REPLACED a complex block with the new, reliable logic ---
             # 1. Find the next active player
@@ -601,48 +455,51 @@ class PlayerWindow(QMainWindow):
                         window.reveal_dragwidget.add_item(card_label)
             # --- END OF REPLACEMENT ---
 
-            if self.main_window.call_button_clicked:
-                pass  # Keep this for now, original logic was here.
-
             QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def exchange_cards1(self):
+    # In PlayerWindow class
+    def reveal_cards(self):
         try:
-            if not self.is_current_player_turn():
-                return  # Return early if it's not the current player's turn
+            if (
+                not self.main_window.hand_in_progress
+                or not self.is_current_player_turn()
+            ):
+                return
 
-            # --- ADD THIS LINE ---
             self.main_window.consecutive_passes = 0
-            # ---------------------
+            print("Reveal button clicked")
+            self.cards_revealed = True
 
-            print("Exchange button clicked")
-
-            # Ensure lists are initialized
+            # All of this logic is correct for updating the card widgets
             self.reveal_cards = [
                 card_label.card for card_label in self.reveal_dragwidget.items
             ]
             self.player_cards = [
                 card_label.card for card_label in self.player_dragwidget.items
             ]
-
-            # Get initial state of cards
-            player_cards_before_exchange = self.player_dragwidget.items.copy()
-            reveal_cards_before_exchange = self.reveal_dragwidget.items.copy()
-
-            # Clear both drag widgets
             self.player_dragwidget.clear()
             self.reveal_dragwidget.clear()
-
-            # Swap cards between player_dragwidget and reveal_dragwidget
-            for card_label in player_cards_before_exchange:
-                self.reveal_dragwidget.addWidget(card_label)
-
-            for card_label in reveal_cards_before_exchange:
-                self.player_dragwidget.addWidget(card_label)
-
-            # Update the card lists with the actual Card objects from the drag widgets
+            for card in self.player_cards:
+                card.set_face_down()
+                card_label = CardWidget(
+                    card,
+                    self.player_dragwidget,
+                    self.reveal_dragwidget,
+                    parent_window=self,
+                )
+                self.reveal_dragwidget.add_item(card_label)
+            for card in self.reveal_cards:
+                card.set_face_up()
+                card.load_image()
+                card_label = CardWidget(
+                    card,
+                    self.player_dragwidget,
+                    self.reveal_dragwidget,
+                    parent_window=self,
+                )
+                self.player_dragwidget.add_item(card_label)
             self.reveal_cards = [
                 card_label.card for card_label in self.reveal_dragwidget.items
             ]
@@ -650,73 +507,45 @@ class PlayerWindow(QMainWindow):
                 card_label.card for card_label in self.player_dragwidget.items
             ]
 
-            # Highlight wild cards
-            for card_label in self.reveal_dragwidget.items:
-                card_label.card.highlight_wild_card(card_label, True)
-            for card_label in self.player_dragwidget.items:
-                card_label.card.highlight_wild_card(
-                    card_label, not card_label.card.set_face_down
-                )
-
-            # Print the updated cards for debugging
-            player_num = self.main_window.player_windows.index(self) + 1
-
-            # Propagate changes to other player windows
+            # Propagate the new reveal cards to other players' views
             for window in self.main_window.player_windows:
                 if window != self:
-                    # Clear the reveal_dragwidget of the other player
                     window.reveal_dragwidget.clear()
-
-                    # Update the reveal_dragwidget of the other players with the current player's revealed cards
                     for card in self.reveal_cards:
-                        new_card_label = CardWidget(
+                        card_label = CardWidget(
                             card,
                             window.player_dragwidget,
                             window.reveal_dragwidget,
-                            parent_window=self,
+                            parent_window=window,
                         )
-                        card.set_face_up()
-                        new_card_label.setPixmap(
-                            card.pixmap.scaled(
+                        card_label.setPixmap(
+                            card_label.card.pixmap.scaled(
                                 50, 80, Qt.AspectRatioMode.KeepAspectRatio
                             )
                         )
-                        window.reveal_dragwidget.addWidget(new_card_label)
+                        window.reveal_dragwidget.add_item(card_label)
 
-            # Disable the exchange button for the current player
-            self.exchange_button.setEnabled(False)
-            self.exchange_button.setStyleSheet("background-color: red;")
-            self.call_button.setEnabled(False)
-            self.call_button.setStyleSheet("background-color: red;")
-            self.pass_button.setEnabled(False)
-            self.pass_button.setStyleSheet("background-color: red;")
+            # Hide the reveal button for all players for the rest of the hand
+            for window in self.main_window.player_windows:
+                window.reveal_button.hide()
 
-            # Get the index of the current player in the list of all players
-            # --- NEW, RELIABLE LOGIC ---
-            next_player_window = self.main_window.get_next_active_player(
-                self.player_number
-            )
-            if not next_player_window:
-                return
-            # --- END OF NEW LOGIC ---
+            # --- SIMPLIFIED ENDING ---
+            # After revealing, simply end the current player's turn.
+            self.end_current_player_turn()
+            # -------------------------
 
-            # Set the button states for the next player
-            self.set_next_player_button_states(next_player_window)
-
-            # --- ADD THIS LOGIC BLOCK ---
-            if self.main_window.call_button_clicked:
-                self.main_window.turns_after_call += 1
-            # ----------------------------
-
-            print("Exchange cards completed")
-
-            QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
         except Exception as e:
-            print(f"Error in exchange_cards: {e}")
+            print(f"An error occurred in reveal_cards: {e}")
 
     # In PlayerWindow class
-    def exchange_cards(self):
+    def exchange_cards1(self):
         try:
+            # --- ADD THIS GUARD ---
+            if not self.main_window.hand_in_progress:
+                print("Exchange action ignored: Hand not in progress.")
+                return
+            # -----------------------
+
             if not self.is_current_player_turn():
                 return
 
@@ -790,64 +619,82 @@ class PlayerWindow(QMainWindow):
             # Set the button states for the next player
             self.set_next_player_button_states(next_player_window)
 
-            # Increment the counter if this is part of a "call" round
-            if self.main_window.call_button_clicked:
-                self.main_window.turns_after_call += 1
-
             print("Exchange cards completed")
             QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
         except Exception as e:
             print(f"Error in exchange_cards: {e}")
 
-    def pass_cards1(self):
+    # In PlayerWindow class
+    def exchange_cards(self):
         try:
             if (
-                self.pass_button.isEnabled()
-                and self.pass_button.styleSheet() == "background-color: green;"
+                not self.main_window.hand_in_progress
+                or not self.is_current_player_turn()
             ):
-                self.pass_button.setEnabled(False)
-                self.pass_button.setStyleSheet("background-color: red;")
+                return
 
-                # Disable the call button for all players
-                for window in self.main_window.player_windows:
-                    window.call_button.setEnabled(False)
-                    window.call_button.setStyleSheet("background-color: red;")
+            self.main_window.consecutive_passes = 0
+            print("Exchange button clicked")
 
-                next_player_number = (
-                    self.player_number % len(self.main_window.player_windows)
-                ) + 1
-                print(f"Next player number: {next_player_number}")
+            # All of this logic for swapping and propagating cards is correct
+            player_cards_before_exchange = self.player_dragwidget.items.copy()
+            reveal_cards_before_exchange = self.reveal_dragwidget.items.copy()
+            self.player_dragwidget.clear()
+            self.reveal_dragwidget.clear()
+            for card_label in player_cards_before_exchange:
+                self.reveal_dragwidget.addWidget(card_label)
+            for card_label in reveal_cards_before_exchange:
+                self.player_dragwidget.addWidget(card_label)
 
-                # Check if the call button has been clicked before enabling it for the next player
-                if not self.call_button_clicked:
-                    self.main_window.player_windows[
-                        next_player_number - 1
-                    ].call_button.setEnabled(True)
-                    self.main_window.player_windows[
-                        next_player_number - 1
-                    ].call_button.setStyleSheet("background-color: green;")
+            self.reveal_cards = [
+                card_label.card for card_label in self.reveal_dragwidget.items
+            ]
+            self.player_cards = [
+                card_label.card for card_label in self.player_dragwidget.items
+            ]
 
-                for window in self.main_window.player_windows:
-                    # print(f"pass_cards Processing window {window.player_number}")
-                    if window.player_number == next_player_number:
-                        self.set_next_player_button_states(window)
-                    else:
-                        window.reveal_button.setEnabled(False)
-                        window.reveal_button.setStyleSheet("background-color: red;")
-                        window.pass_button.setEnabled(False)
-                        window.pass_button.setStyleSheet("background-color: red;")
-                        window.call_button.setEnabled(False)
-                        window.call_button.setStyleSheet("background-color: red;")
-                        window.exchange_button.setEnabled(False)
-                        window.exchange_button.setStyleSheet("background-color: red;")
+            for card_label in self.reveal_dragwidget.items:
+                card_label.card.highlight_wild_card(card_label, True)
 
-                QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
+            # NEW, CORRECTED CODE
+            for card_label in self.player_dragwidget.items:
+                # A card in the player's hand is always considered "face up" for highlighting purposes.
+                card_label.card.highlight_wild_card(card_label, is_face_up=True)
+
+            for window in self.main_window.player_windows:
+                if window != self:
+                    window.reveal_dragwidget.clear()
+                    for card in self.reveal_cards:
+                        new_card_label = CardWidget(
+                            card,
+                            window.player_dragwidget,
+                            window.reveal_dragwidget,
+                            parent_window=window,
+                        )
+                        new_card_label.setPixmap(
+                            card.pixmap.scaled(
+                                50, 80, Qt.AspectRatioMode.KeepAspectRatio
+                            )
+                        )
+                        window.reveal_dragwidget.addWidget(new_card_label)
+
+            # --- SIMPLIFIED ENDING ---
+            # After exchanging, simply end the current player's turn.
+            self.end_current_player_turn()
+            # -------------------------
+
         except Exception as e:
-            print(f"An error occurred in pass_cards: {e}")
+            print(f"Error in exchange_cards: {e}")
 
     # In PlayerWindow class
-    def pass_cards(self):
+    def pass_cards1(self):
         try:
+            # --- ADD THIS GUARD ---
+            if not self.main_window.hand_in_progress:
+                print("Pass action ignored: Hand not in progress.")
+                return
+            # -----------------------
+
             if (
                 self.pass_button.isEnabled()
                 and self.pass_button.styleSheet() == "background-color: green;"
@@ -871,13 +718,6 @@ class PlayerWindow(QMainWindow):
                     window.call_button.setEnabled(False)
                     window.call_button.setStyleSheet("background-color: red;")
 
-                # Enable call button only for the next player if not in a "call round"
-                if not self.main_window.call_button_clicked:
-                    next_player_window.call_button.setEnabled(True)
-                    next_player_window.call_button.setStyleSheet(
-                        "background-color: green;"
-                    )
-
                 # Set button states for all players
                 for window in self.main_window.player_windows:
                     if window == next_player_window:
@@ -892,95 +732,27 @@ class PlayerWindow(QMainWindow):
                         window.exchange_button.setEnabled(False)
                         window.exchange_button.setStyleSheet("background-color: red;")
 
-                if self.main_window.call_button_clicked:
-                    self.main_window.turns_after_call += 1
-
                 QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
         except Exception as e:
             print(f"An error occurred in pass_cards: {e}")
 
-    def call_cards1(self):
-        print("\n--- call_cards method started ---")
-        print(f"call_cards button clicked by Player {self.player_number}")
-
-        if not self.is_current_player_turn():
-            # print(f"Not Player {self.player_number}'s turn. Exiting call_cards method.")
+    # In PlayerWindow class
+    def pass_cards(self):
+        if not self.main_window.hand_in_progress or not self.is_current_player_turn():
             return
 
-        # Set the calling player number
-        self.main_window.calling_player_number = self.player_number
-
-        # Disable call button in all windows and turn them red
-        for window in self.main_window.player_windows:
-            # print(f"\nProcessing Player {window.player_number}:")
-            # print(f"  Disabling call button for Player {window.player_number}")
-            window.call_button.setEnabled(False)
-            window.call_button.setStyleSheet("background-color: red;")
-            # print(f"  Disabling pass button for Player {window.player_number}")
-            window.pass_button.setEnabled(False)
-            window.pass_button.setStyleSheet("background-color: red;")
-            # Ensure exchange button is disabled and red for all players initially
-            window.exchange_button.setEnabled(False)
-            window.exchange_button.setStyleSheet("background-color: red;")
-            # print(
-            #     f"  exchange_button state for Player {window.player_number}: Enabled: {window.exchange_button.isEnabled()}, StyleSheet: {window.exchange_button.styleSheet()}")
-
-        # Set a flag to indicate that the call button has been clicked
-        self.main_window.call_button_clicked = True
-        # print("\ncall_button_clicked flag set to True for all players")
-
-        # Disable all buttons for the current player
-        # print(f"\nDisabling buttons for Player {self.player_number} (current player):")
-        self.call_button.setEnabled(False)
-        self.call_button.setStyleSheet("background-color: red;")
-        self.pass_button.setEnabled(False)
-        self.pass_button.setStyleSheet("background-color: red;")
-        self.exchange_button.setEnabled(False)
-        self.exchange_button.setStyleSheet("background-color: red;")
-        if hasattr(self, "reveal_button"):
-            self.reveal_button.setEnabled(False)
-            self.reveal_button.setStyleSheet("background-color: red;")
-
-        # print(
-        #     f"  exchange_button state for Player {self.player_number}: Enabled: {self.exchange_button.isEnabled()}, StyleSheet: {self.exchange_button.styleSheet()}")
-
-        # Calculate the next player number
-        next_player_number = (
-            self.player_number % len(self.main_window.player_windows)
-        ) + 1
-        print(f"\nNext player number: {next_player_number}")
-
-        # Enable reveal button and pass button for the next player
-        next_player_window = self.main_window.player_windows[next_player_number - 1]
-        # print(f"\nEnabling reveal button and pass button for Player {next_player_number}:")
-        next_player_window.reveal_button.setEnabled(True)
-        next_player_window.reveal_button.setStyleSheet("background-color: green;")
-        next_player_window.pass_button.setEnabled(True)
-        next_player_window.pass_button.setStyleSheet("background-color: green;")
-
-        # Enable exchange button and set it to green for the next player only if the reveal button is hidden
-        if next_player_window.reveal_button.isHidden():
-            next_player_window.exchange_button.setEnabled(True)
-            next_player_window.exchange_button.setStyleSheet("background-color: green;")
-        else:
-            next_player_window.exchange_button.setEnabled(False)
-            next_player_window.exchange_button.setStyleSheet("background-color: red;")
-
-        # print(
-        #     f"  exchange_button state for Player {next_player_number}: Enabled: {next_player_window.exchange_button.isEnabled()}, StyleSheet: {next_player_window.exchange_button.styleSheet()}")
-
-        # Disable the call button for the next player
-        # print(f"\nDisabling call button for Player {next_player_number}:")
-        next_player_window.call_button.setEnabled(False)
-        next_player_window.call_button.setStyleSheet("background-color: red;")
-
-        print("\n--- call_cards method completed ---")
-
-        # Schedule the game end check after the next player's turn
-        QTimer.singleShot(0, lambda: self.main_window.check_end_hand())
+        print(f"Player {self.player_number} clicked Pass.")
+        self.main_window.consecutive_passes += 1
+        self.end_current_player_turn()  # Simply end the turn
 
     # In PlayerWindow class
     def call_cards(self):
+        # --- ADD THIS GUARD ---
+        if not self.main_window.hand_in_progress:
+            print("Call action ignored: Hand not in progress.")
+            return
+        # -----------------------
+
         print("\n--- call_cards method started ---")
         print(f"call_cards button clicked by Player {self.player_number}")
 
@@ -1058,55 +830,6 @@ class PlayerWindow(QMainWindow):
             print(f"An error occurred in set_initial_button_states: {e}")
             traceback.print_exc()
 
-    # In PlayerWindow class
-    def set_initial_button_states2(self, current_player_number, call_button_clicked):
-        try:
-            # First, check if this player is active at all
-            is_active = self.main_window.player_statuses[self.player_index] == "Active"
-
-            if not is_active:
-                # If player is 'Out', all buttons are disabled and red.
-                self.reveal_button.setEnabled(False)
-                self.reveal_button.setStyleSheet("background-color: red;")
-                self.exchange_button.setEnabled(False)
-                self.exchange_button.setStyleSheet("background-color: red;")
-                self.call_button.setEnabled(False)
-                self.call_button.setStyleSheet("background-color: red;")
-                self.pass_button.setEnabled(False)
-                self.pass_button.setStyleSheet("background-color: red;")
-                print(f"Player {self.player_number}: INACTIVE. All buttons disabled.")
-                return
-
-            # If the player is active, determine if it's their turn
-            if self.player_number == current_player_number:
-                # It's my turn
-                self.exchange_button.setEnabled(False)  # Always starts disabled
-                self.exchange_button.setStyleSheet("background-color: red;")
-                self.call_button.setEnabled(not call_button_clicked)
-                self.call_button.setStyleSheet(
-                    "background-color: green;"
-                    if not call_button_clicked
-                    else "background-color: red;"
-                )
-                self.pass_button.setEnabled(True)
-                self.pass_button.setStyleSheet("background-color: green;")
-                print(f"Player {self.player_number}: MY TURN. Buttons enabled.")
-            else:
-                # It's someone else's turn
-                self.exchange_button.setEnabled(False)
-                self.exchange_button.setStyleSheet("background-color: red;")
-                self.call_button.setEnabled(False)
-                self.call_button.setStyleSheet("background-color: red;")
-                self.pass_button.setEnabled(False)
-                self.pass_button.setStyleSheet("background-color: red;")
-                print(
-                    f"Player {self.player_number}: NOT MY TURN. Action buttons disabled."
-                )
-
-        except Exception as e:
-            print(f"An error occurred in set_initial_button_states: {e}")
-            traceback.print_exc()
-
     def set_next_player_button_states(self, next_player_window):
         try:
             # logging.debug(
@@ -1159,7 +882,7 @@ class PlayerWindow(QMainWindow):
             print(f"An error occurred in set_next_player_button_states: {e}")
             traceback.print_exc()
 
-    def end_current_player_turn(self):
+    def end_current_player_turn1(self):
         self.exchange_button.setEnabled(False)
         self.exchange_button.setStyleSheet("background-color: red;")
         self.call_button.setEnabled(False)
@@ -1175,6 +898,43 @@ class PlayerWindow(QMainWindow):
         # --- END OF NEW LOGIC ---
 
         self.main_window.set_next_player_button_states(next_player_window)
+
+    # In PlayerWindow class
+    def end_current_player_turn(self):
+        print(f"--- Player {self.player_number}'s turn is ending. ---")
+
+        # --- NEW CENTRALIZED LOGIC ---
+        # This function is now the ONLY place that increments the turn counter.
+        if self.main_window.call_button_clicked:
+            self.main_window.turns_after_call += 1
+        # --- END OF NEW LOGIC ---
+
+        # Disable buttons for the current player
+        self.exchange_button.setEnabled(False)
+        self.exchange_button.setStyleSheet("background-color: red;")
+        self.call_button.setEnabled(False)
+        self.call_button.setStyleSheet("background-color: red;")
+        self.pass_button.setEnabled(False)
+        self.pass_button.setStyleSheet("background-color: red;")
+        # Also disable reveal button if it exists
+        if hasattr(self, "reveal_button") and not self.reveal_button.isHidden():
+            self.reveal_button.setEnabled(False)
+            self.reveal_button.setStyleSheet("background-color: red;")
+
+        # Find and set up the next player
+        next_player_window = self.main_window.get_next_active_player(self.player_number)
+        if not next_player_window:
+            # No more active players, trigger the end-of-hand check immediately
+            print("end_current_player_turn: No next active player found.")
+            QTimer.singleShot(0, self.main_window.check_end_hand)
+            return
+
+        # Set the next player's turn state
+        self.main_window.current_player_number = next_player_window.player_number
+        self.set_next_player_button_states(next_player_window)
+
+        # Finally, check if the hand should end
+        QTimer.singleShot(0, self.main_window.check_end_hand)
 
     def enable_drag_and_drop(self):
         self.reveal_dragwidget.setAcceptDrops(True)
@@ -1205,7 +965,7 @@ class PlayerWindow(QMainWindow):
                     )
                     card_label.setPixmap(scaled_pixmap)
 
-    def add_cards_to_widget(self, widget, cards, reveal):
+    def add_cards_to_widget1(self, widget, cards, reveal):
         try:
             widget.clear()
             for card in cards[:5]:  # Ensure only the first 5 cards are added
@@ -1232,6 +992,36 @@ class PlayerWindow(QMainWindow):
                 widget.add_item(card_label)
         except Exception as e:
             print(f"An error occurred in add_cards_to_widget: {e}")
+
+    def add_cards_to_widget(self, widget, cards, reveal):
+        try:
+            # This was already here, but just for reference
+            # widget.clear()
+
+            for card in cards[:5]:
+                # --- THE FIX IS HERE ---
+                # We now pass 'face_down=reveal' directly to the CardWidget constructor.
+                # The 'reveal' parameter is True for the reveal_dragwidget, correctly setting the cards to face down.
+                card_label = CardWidget(
+                    card,
+                    self.player_dragwidget,
+                    self.reveal_dragwidget,
+                    parent_window=self,
+                    face_down=reveal,  # <-- CRITICAL FIX
+                )
+                # --- END OF FIX ---
+
+                # The CardWidget's __init__ method now handles setting the pixmap correctly,
+                # so the code below is no longer needed here.
+
+                # scaled_pixmap = card.pixmap.scaled(50, 80, Qt.AspectRatioMode.KeepAspectRatio)
+                # card_label.setPixmap(scaled_pixmap)
+                # card.highlight_wild_card(card_label, is_face_up)
+
+                widget.add_item(card_label)
+        except Exception as e:
+            print(f"An error occurred in add_cards_to_widget: {e}")
+            traceback.print_exc()  # Added for better error reporting
 
     def update_cards(self, reveal_cards, player_cards):
         try:

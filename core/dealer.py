@@ -64,7 +64,7 @@ class Dealer(QObject):
 
         self.deck = deck
 
-    def eval_hand(self, hand):
+    def eval_hand1(self, hand):
         logging.info("Dealer Evaluating hand rank")
         value_map = self.value_dict
         values = []
@@ -88,6 +88,50 @@ class Dealer(QObject):
         possible_values = list(
             range(2, 15)
         )  # Possible values for the wild cards (2 to Ace)
+
+        if wildcards:
+            for wild_combination in self.get_all_wildcard_combinations(
+                wildcards, possible_values
+            ):
+                possible_hand = sorted(values + wild_combination, reverse=True)
+                evaluated_hand = self.evaluate_possible_hand(
+                    possible_hand, suits, wildcards
+                )
+                if not best_hand or evaluated_hand > best_hand:
+                    best_hand = evaluated_hand
+        else:
+            best_hand = self.evaluate_possible_hand(values, suits, wildcards)
+
+        return best_hand
+
+    def eval_hand(self, hand):
+        logging.info("Dealer Evaluating hand rank")
+        value_map = self.value_dict
+        values = []
+        suits = []
+        wildcards = []
+
+        # --- NEW, CORRECTED LOGIC ---
+        for card in hand:
+            # A card is a wildcard IF AND ONLY IF its is_wild flag is True.
+            if card.is_wild:
+                # We add a placeholder value for wildcards, e.g., 0.
+                # Its real value will be determined later.
+                wildcards.append(0)
+            else:
+                # For all other cards, including a non-wild Ace, use the standard high value.
+                values.append(value_map[str(card.value)])
+
+            suits.append(card.suit)
+        # --- END OF NEW LOGIC ---
+
+        print(
+            f"Dealer: eval_hand - Hand values: {values}, suits: {suits}, wildcards: {wildcards}"
+        )
+
+        # The rest of the method for trying combinations remains the same.
+        best_hand = None
+        possible_values = list(range(2, 15))
 
         if wildcards:
             for wild_combination in self.get_all_wildcard_combinations(

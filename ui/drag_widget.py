@@ -1,9 +1,9 @@
 import json
 import logging
+import traceback
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout
 from PyQt5.QtCore import Qt, pyqtSignal
 from core.card import Card
-from ui.card_widget import CardWidget
 
 
 class DragWidget(QWidget):
@@ -67,34 +67,173 @@ class DragWidget(QWidget):
         else:
             event.ignore()
 
-    def dropEvent(self, event):
-        logging.debug("dropEvent started")
-        if event.mimeData().hasText():
-            try:
-                print(f"Drop event received with data: {event.mimeData().text()}")
-                card_data = json.loads(event.mimeData().text())
-                card = Card(card_data["value"], card_data["suit"])
-                logging.debug(f"Dropping card: {card_data}")
+    def dropEvent1(self, event):
+        from ui.card_widget import CardWidget
 
-                source_widget = event.source()
-                if self == self.parent_window.reveal_dragwidget:
-                    print("Handling drop on reveal_dragwidget")
-                    self.handle_drop_on_reveal(event, card)
-                elif self == self.parent_window.player_dragwidget:
-                    print("Handling rearrangement within player_dragwidget")
-                    self.rearrange_player_cards(event)
-                    # No need to call end_current_player_turn here, as it is handled in handle_card_movement
-                    logging.debug(
-                        f"Drop successful on widget {self} with card {card_data}"
+        logging.debug("dropEvent started")
+        if not event.mimeData().hasText():
+            event.ignore()
+            return
+
+        try:
+            source_widget = event.source().parent()
+
+            if source_widget == self:
+                # This is an INTERNAL drag for rearrangement. This is always allowed.
+                print("Handling rearrangement within player_dragwidget")
+                self.rearrange_player_cards(event)
+                event.acceptProposedAction()
+            else:
+                # This is an EXTERNAL drop from another widget.
+                # --- NEW TURN CHECK LOGIC ---
+                if not self.parent_window.is_current_player_turn():
+                    print("Drop rejected: Not the current player's turn.")
+                    event.ignore()
+                    return
+                # --- END OF NEW LOGIC ---
+
+                print("Handling external drop from another widget")
+                dragged_item = (
+                    source_widget.drag_item
+                    if hasattr(source_widget, "drag_item")
+                    else None
+                )
+
+                if dragged_item and isinstance(dragged_item, CardWidget):
+                    source_widget.remove_item(dragged_item)
+                    self.add_item(dragged_item)
+                    dragged_item.setParent(self)
+                    dragged_item.show()
+                    dragged_item.handle_card_movement()
+                    event.acceptProposedAction()
+                else:
+                    print("Error: Could not find the source CardWidget for the drop.")
+                    event.ignore()
+
+        except Exception as e:
+            logging.error(f"DropEvent error: {str(e)}")
+            traceback.print_exc()
+            event.ignore()
+
+    # In DragWidget class (ui/drag_widget.py)
+
+    def dropEvent2(self, event):
+        from ui.card_widget import CardWidget
+
+        logging.debug("dropEvent started")
+        if not event.mimeData().hasText():
+            event.ignore()
+            return
+
+        try:
+            source_widget = event.source().parent()
+
+            if source_widget == self:
+                # Internal drag for rearrangement is always allowed.
+                print("Handling rearrangement within player_dragwidget")
+                self.rearrange_player_cards(event)
+                event.acceptProposedAction()
+            else:
+                # This is an EXTERNAL drop from another widget.
+                if not self.parent_window.is_current_player_turn():
+                    print("Drop rejected: Not the current player's turn.")
+                    event.ignore()
+                    return
+
+                # --- NEW RULE CHECK ---
+                # Are any cards in this widget currently face down?
+                for item in self.items:
+                    if item.face_down:
+                        print(
+                            "Drop rejected: Cannot drop onto a widget with face-down cards."
+                        )
+                        event.ignore()
+                        return
+                # --- END OF NEW RULE ---
+
+                print("Handling external drop from another widget")
+                dragged_item = (
+                    source_widget.drag_item
+                    if hasattr(source_widget, "drag_item")
+                    else None
+                )
+
+                if dragged_item and isinstance(dragged_item, CardWidget):
+                    source_widget.remove_item(dragged_item)
+                    self.add_item(dragged_item)
+                    dragged_item.setParent(self)
+                    dragged_item.show()
+                    dragged_item.handle_card_movement()
+                    event.acceptProposedAction()
+                else:
+                    print("Error: Could not find the source CardWidget for the drop.")
+                    event.ignore()
+
+        except Exception as e:
+            logging.error(f"DropEvent error: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+            event.ignore()
+
+    # In DragWidget class
+    def dropEvent(self, event):
+        from ui.card_widget import CardWidget
+
+        logging.debug("dropEvent started")
+
+        if not event.mimeData().hasText():
+            event.ignore()
+            return
+
+        try:
+            source_widget = event.source().parent()
+
+            # --- FINAL, CORRECTED LOGIC ---
+            if source_widget == self:
+                # This is an INTERNAL DRAG.
+                # Only rearrange the cards and do nothing else.
+                print("Handling rearrangement. No game action.")
+                self.rearrange_player_cards(event)
+                event.acceptProposedAction()
+                return  # IMPORTANT: Stop all further processing.
+
+            # If we reach here, it must be an EXTERNAL DROP.
+            # Now, we apply all the game rules for an external drop.
+            if not self.parent_window.is_current_player_turn():
+                print("Drop rejected: Not the current player's turn.")
+                event.ignore()
+                return
+
+            for item in self.items:
+                if item.face_down:
+                    print(
+                        "Drop rejected: Cannot drop onto a widget with face-down cards."
                     )
-            except Exception as e:
-                logging.error(f"DropEvent error: {str(e)}")
+                    event.ignore()
+                    return
+
+            dragged_item = getattr(source_widget, "drag_item", None)
+
+            if dragged_item and isinstance(dragged_item, CardWidget):
+                # This is a valid external drop. Physically move the widget.
+                source_widget.remove_item(dragged_item)
+                self.add_item(dragged_item)
+                dragged_item.setParent(self)
+                dragged_item.show()
+
+                # Now that the move is complete, call the game logic handler ONCE.
+                dragged_item.handle_card_movement()
+                event.acceptProposedAction()
+            else:
+                print("Error: Could not find the source CardWidget for the drop.")
                 event.ignore()
 
-            self.drag_item = None
-            event.acceptProposedAction()
-        else:
-            logging.debug("dropEvent rejected: no valid mimeData")
+        except Exception as e:
+            logging.error(f"DropEvent error: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
             event.ignore()
 
     def handle_drop_on_revealOriginal(self, event, card):

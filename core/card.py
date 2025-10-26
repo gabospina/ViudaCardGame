@@ -100,7 +100,7 @@ class Deck:
     def remaining_cards(self):
         return len(self.cards)
 
-    def update_wild_card(self, table_chips):
+    def update_wild_card1(self, table_chips):
         wild_card_value_number = table_chips
         matching_values = [
             key
@@ -121,6 +121,33 @@ class Deck:
         # Update card states
         for card in self.cards:
             card.set_wild(card.value == self.wild_card_value)
+
+    def update_wild_card(self, table_chips):
+        # Import the new dictionary
+        from viuda_card_config import REVERSE_VALUE_DICT
+
+        # --- NEW, CORRECTED LOGIC ---
+        # The wild card number cycles from 1 to 13.
+        # The modulo operator (%) is perfect for this.
+        # (table_chips - 1) % 13 ensures the result is always 0-12.
+        # Adding +1 makes it 1-13.
+        wild_card_number = ((table_chips - 1) % 13) + 1
+
+        # Look up the card's string value (e.g., 'A', 'K', '8') using the number
+        self.wild_card_value = REVERSE_VALUE_DICT.get(wild_card_number)
+        # --- END OF NEW LOGIC ---
+
+        if self.wild_card_value:
+            print(
+                f"Deck: update_wild_card - Wild card value is now '{self.wild_card_value}'"
+            )
+            # Update the is_wild status for all cards in the deck
+            for card in self.cards:
+                card.set_wild(card.value == self.wild_card_value)
+        else:
+            print(
+                f"Deck: update_wild_card - Error: Could not find a wild card for number {wild_card_number}"
+            )
 
     def draw_card(self):
         if not self.cards:
